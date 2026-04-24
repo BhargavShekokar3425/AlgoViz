@@ -38,6 +38,11 @@ from datasets.sample_data import generate_linear_data
 def health_check():
     return jsonify({"status": "healthy"})
 
+# Backward-compatible health check endpoint (some clients call /health)
+@app.route('/health', methods=['GET'])
+def health_check_root():
+    return health_check()
+
 # Debug route to test API connectivity
 @app.route('/', methods=['GET'])
 def root():

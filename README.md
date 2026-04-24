@@ -126,7 +126,7 @@ AlgoViz/
 
 2. Install the required Python packages:
    ```bash
-   pip install flask flask-cors python-dotenv numpy pandas scikit-learn matplotlib seaborn joblib
+   pip install flask flask-cors python-dotenv numpy pandas scikit-learn matplotlib seaborn joblib pydot
    ```
 
 3. Start the Flask backend:

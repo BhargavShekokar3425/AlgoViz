@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import axios from 'axios';
 import './ModelPage.css';
-const apiUrl= process.env.REACT_APP_API_URL || 'http://127.0.0.1:5000';
+const rawApiUrl = (process.env.REACT_APP_API_URL || 'http://127.0.0.1:5000/api').replace(/\/$/, '');
+const apiUrl= rawApiUrl.endsWith('/api') ? rawApiUrl : `${rawApiUrl}/api`;
 function DBScan() {
     const navigate = useNavigate();
     const [dataPoints, setDataPoints] = useState([]);

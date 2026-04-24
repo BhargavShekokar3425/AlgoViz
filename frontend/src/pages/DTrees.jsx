@@ -65,7 +65,8 @@ const toggleTreeEnlargement = () => {
   // For hover effect on visualization
   const [hoveredPoint, setHoveredPoint] = useState(null);
   
-  const apiUrl = process.env.REACT_APP_API_URL || 'http://127.0.0.1:5000';
+  const rawApiUrl = (process.env.REACT_APP_API_URL || 'http://127.0.0.1:5000/api').replace(/\/$/, '');
+  const apiUrl = rawApiUrl.endsWith('/api') ? rawApiUrl : `${rawApiUrl}/api`;
 
   // Check backend health when component mounts
   useEffect(() => {
