@@ -14,8 +14,6 @@ function PCA() {
   const [error, setError] = useState(null);
   const [backendStatus, setBackendStatus] = useState("checking");
   const [sampleLoading, setSampleLoading] = useState(false);
-  const [components, setComponents] = useState(2);
-  const [explainedVariance, setExplainedVariance] = useState(null);
   const [showSampleDataModal, setShowSampleDataModal] = useState(false);
   const [sampleCount, setSampleCount] = useState(30);
   const [sampleNoise, setSampleNoise] = useState(5.0);
@@ -370,28 +368,6 @@ function PCA() {
     
     newPairs[index][field] = value;
     setDataPairs(newPairs);
-  };
-
-  const loadSampleData = async () => {
-    setSampleLoading(true);
-    setError(null);
-
-    try {
-      const sampleData = await getPCASampleData();
-
-      // Convert sample data into pairs
-      const pairs = sampleData.X.map((point) => ({
-        x: point[0]?.toString() || '',
-        y: point[1]?.toString() || ''
-      }));
-
-      setDataPairs(pairs);
-    } catch (err) {
-      setError('Failed to load sample data. Please try again.');
-      console.error(err);
-    } finally {
-      setSampleLoading(false);
-    }
   };
 
   const generateSampleDataWithOptions = async () => {

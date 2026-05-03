@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import './ModelPage.css';
@@ -13,18 +13,41 @@ function KNN() {
   
   // States for visualization
   const canvasRef = useRef(null);
-  const boundaryCanvasRef = useRef(null);
   const [selectedClass, setSelectedClass] = useState('1');
   const [pointsMode, setPointsMode] = useState('train'); // 'train' or 'predict'
   const [trainingPoints, setTrainingPoints] = useState([]);
   const [predictPoints, setPredictPoints] = useState([]);
   const [predictions, setPredictions] = useState([]);
-  const canvasDimensions = { width: 600, height: 600 }; // Square canvas for proper aspect ratio
+  const canvasDimensions = useMemo(() => ({ width: 600, height: 600 }), []); // Square canvas for proper aspect ratio
   // Expanded scale from -8 to 8
-  const scale = {
+  const scale = useMemo(() => ({
     x: { min: -8, max: 8 },
     y: { min: -8, max: 8 }
-  };
+  }), []);
+
+  // Check backend health on component mount
+  useEffect(() => {
+    let cancelled = false;
+
+    const checkBackendHealth = async () => {
+      try {
+        const response = await checkHealth();
+        if (cancelled) return;
+        setBackendStatus(response.status === "healthy" ? "connected" : "disconnected");
+      } catch (err) {
+        console.error("Backend health check failed:", err);
+        if (cancelled) return;
+        setBackendStatus("disconnected");
+        setError("Backend connection error: " + (err.message || "Unknown error"));
+      }
+    };
+
+    checkBackendHealth();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   
   // For point input dialog
   const [showPointDialog, setShowPointDialog] = useState(false);

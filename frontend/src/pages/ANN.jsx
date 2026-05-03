@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import axios from 'axios';
@@ -12,15 +12,15 @@ function ANN() {
     const [results, setResults] = useState(null);
     const [error, setError] = useState(null);
     const [backendStatus, setBackendStatus] = useState("checking");
-    const [sampleLoading, setSampleLoading] = useState(false);
+    const [sampleLoading] = useState(false);
     const [currentClass, setCurrentClass] = useState(0);
     const [interactionMode, setInteractionMode] = useState('train');
     const [predictedPoints, setPredictedPoints] = useState([]);
-    const [showNeuralNetwork, setShowNeuralNetwork] = useState(true);
+    const [showNeuralNetwork] = useState(true);
     const [showSampleDataModal, setShowSampleDataModal] = useState(false);
     const [sampleDataType, setSampleDataType] = useState('classification');
     const [sampleCount, setSampleCount] = useState(40);
-    const [sampleClusters, setSampleClusters] = useState(2);
+    const [sampleClusters] = useState(2);
     const [sampleVariance, setSampleVariance] = useState(0.5);
     const [decisionBoundary, setDecisionBoundary] = useState(null);
     const [neuronVisualizations, setNeuronVisualizations] = useState({});
@@ -45,10 +45,10 @@ function ANN() {
     const [canvasDimensions] = useState({ width: 600, height: 600 }); // Square canvas
     
     // Fixed scale - adjust to -8 to 8 range
-    const scale = {
+    const scale = useMemo(() => ({
         x: { min: -8, max: 8 },
         y: { min: -8, max: 8 }
-    };
+    }), []);
     
     // Check backend health on component mount
     useEffect(() => {
@@ -127,7 +127,7 @@ function ANN() {
     };
 
     // Update drawGrid function
-    const drawGrid = (ctx, canvas) => {
+    const drawGrid = useCallback((ctx, canvas) => {
         // Calculate step size for grid lines (16 divisions)
         const stepX = canvas.width / 16;
         const stepY = canvas.height / 16;
@@ -193,9 +193,9 @@ function ANN() {
             const value = scale.y.max - (i / 16) * (scale.y.max - scale.y.min);
             ctx.fillText(value.toFixed(0), 5, y + 4);
         }
-    };
+    }, [scale]);
 
-    const drawPoints = (ctx, canvas, points) => {
+    const drawPoints = useCallback((ctx, canvas, points) => {
         if (!points || points.length === 0) return;
         
         points.forEach(point => {
@@ -253,9 +253,9 @@ function ANN() {
             ctx.stroke();
             ctx.setLineDash([]);
         });
-    };
+    }, [scale]);
 
-    const drawNeuralNetwork = () => {
+    const drawNeuralNetwork = useCallback(() => {
         const canvas = networkCanvasRef.current;
         if (!canvas) return;
         
@@ -459,7 +459,7 @@ function ANN() {
                 ctx.restore();
             });
         });
-    };
+    }, [networkArchitecture, neuronVisualizations]);
 
     // Update the drawNeuralNetworkWithData function
     const drawNeuralNetworkWithData = (visualizationData) => {
@@ -628,7 +628,7 @@ function ANN() {
         if (showNeuralNetwork) {
             drawNeuralNetwork();
         }
-    }, [networkArchitecture, showNeuralNetwork]);
+    }, [drawNeuralNetwork, showNeuralNetwork]);
         
     // Convert screen coordinates to data coordinates
     const screenToData = (x, y) => {
@@ -682,8 +682,15 @@ function ANN() {
         drawGrid(ctx, canvas);
         
         // Just draw points - don't show decision boundary on main canvas
-        drawPoints(ctx, canvas, [...getValidPoints(), ...predictedPoints]);
-    }, [dataPairs, predictedPoints]);
+        const validPoints = dataPairs
+            .filter(pair => pair.x !== '' && pair.y !== '' && !isNaN(parseFloat(pair.x)) && !isNaN(parseFloat(pair.y)))
+            .map(pair => ({
+                x: parseFloat(pair.x),
+                y: parseFloat(pair.y),
+                class: pair.class
+            }));
+        drawPoints(ctx, canvas, [...validPoints, ...predictedPoints]);
+    }, [dataPairs, predictedPoints, drawGrid, drawPoints]);
 
     // Update the handleCanvasClick function for better mapping
     const handleCanvasClick = (e) => {
@@ -745,7 +752,7 @@ function ANN() {
         }[sampleDataType] || 'blobs';
         
         // Call the backend API
-        axios.post(`${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/ann/sample_data`, {
+        axios.post(`${process.env.REACT_APP_API_URL || 'http://localhost:5000/api'}/ann/sample_data`, {
             dataset_type: backendDatasetType,
             count: sampleCount,
             n_clusters: sampleClusters,
@@ -857,7 +864,7 @@ function ANN() {
             };
     
             console.log('Calling API endpoint with data:', apiData);
-            const response = await axios.post(`${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/ann/train`, apiData);
+            const response = await axios.post(`${process.env.REACT_APP_API_URL || 'http://localhost:5000/api'}/ann/train`, apiData);
     
             if (response.data.error) {
                 throw new Error(response.data.error);
@@ -930,7 +937,7 @@ function ANN() {
                 points: predictedPoints.map(point => [parseFloat(point.x), parseFloat(point.y)])
             };
     
-            const response = await axios.post(`${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/ann/predict`, apiData);
+            const response = await axios.post(`${process.env.REACT_APP_API_URL || 'http://localhost:5000/api'}/ann/predict`, apiData);
     
             if (response.data.error) {
                 throw new Error(response.data.error);

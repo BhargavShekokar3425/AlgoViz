@@ -12,13 +12,11 @@ function Reg() {
   const [results, setResults] = useState(null);
   const [error, setError] = useState(null);
   const [backendStatus, setBackendStatus] = useState("checking");
-  const [sampleLoading, setSampleLoading] = useState(false);
   
   // Algorithm parameters
   const [alpha, setAlpha] = useState(0.01);
   const [iterations, setIterations] = useState(100);
   const [degree, setDegree] = useState(1);
-  const [isHighAlpha, setIsHighAlpha] = useState(false);
   
   // Canvas ref and state for interactive plotting
   const canvasRef = useRef(null);
@@ -60,11 +58,6 @@ function Reg() {
     checkBackendHealth();
   }, []);
 
-  // Check if alpha is too high
-  useEffect(() => {
-    setIsHighAlpha(alpha > 0.1);
-  }, [alpha]);
-  
   // Auto-advance through iterations (like in DBScan)
   useEffect(() => {
     let timer;
@@ -327,46 +320,6 @@ function Reg() {
     }
   };
 
-  const handleAddPair = () => {
-    setDataPairs([...dataPairs, { x: '', y: '' }]);
-  };
-
-  const handleRemovePair = (index) => {
-    const newPairs = [...dataPairs];
-    newPairs.splice(index, 1);
-    
-    // Ensure there's always at least one row
-    if (newPairs.length === 0) {
-      newPairs.push({ x: '', y: '' });
-    }
-    
-    setDataPairs(newPairs);
-  };
-
-  const handleInputChange = (index, field, value) => {
-    const newPairs = [...dataPairs];
-    
-    // Strip any non-numeric characters except decimal point and minus sign
-    if (field === 'x' || field === 'y') {
-      // Allow only numbers, decimal point, and minus sign at the beginning
-      value = value.replace(/[^0-9.-]/g, '');
-      
-      // Ensure only one decimal point
-      const parts = value.split('.');
-      if (parts.length > 2) {
-        value = parts[0] + '.' + parts.slice(1).join('');
-      }
-      
-      // Ensure minus sign is only at the beginning
-      if (value.indexOf('-') > 0) {
-        value = value.replace(/-/g, '');
-        value = '-' + value;
-      }
-    }
-    
-    newPairs[index][field] = value;
-    setDataPairs(newPairs);
-  };
   
   // Sample data generation
   const loadSampleData = () => {
@@ -866,7 +819,7 @@ function Reg() {
                 <button 
                   className="reset-button" 
                   onClick={resetData}
-                  disabled={loading || dataPairs.length <= 1 && dataPairs[0].x === '' && dataPairs[0].y === ''}
+                  disabled={loading || (dataPairs.length <= 1 && dataPairs[0].x === '' && dataPairs[0].y === '')}
                   style={{
                     padding: '0.5rem 0.75rem',
                     backgroundColor: '#ef4444',

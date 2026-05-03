@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import axios from 'axios';
@@ -30,7 +30,7 @@ function KMeans() {
   const [canvasDimensions] = useState({ width: 600, height: 600 }); // Square canvas for proper aspect ratio
   
   // Define colors for clusters (up to 10 clusters)
-  const clusterColors = [
+  const clusterColors = useMemo(() => ([
     'rgba(59, 130, 246, 0.7)',  // Blue
     'rgba(239, 68, 68, 0.7)',   // Red
     'rgba(34, 197, 94, 0.7)',   // Green
@@ -41,7 +41,7 @@ function KMeans() {
     'rgba(234, 179, 8, 0.7)',   // Yellow
     'rgba(8, 145, 178, 0.7)',   // Cyan
     'rgba(124, 58, 237, 0.7)'   // Indigo
-  ];
+  ]), []);
   
   const rawApiUrl = (process.env.REACT_APP_API_URL || 'http://127.0.0.1:5000/api').replace(/\/$/, '');
   const apiUrl = rawApiUrl.endsWith('/api') ? rawApiUrl : `${rawApiUrl}/api`;
@@ -60,7 +60,169 @@ function KMeans() {
     };
     
     checkBackendHealth();
+  }, [apiUrl]);
+
+  // Helper function to draw grid
+  const drawGrid = useCallback((ctx, canvas) => {
+    ctx.strokeStyle = '#e5e7eb';
+    ctx.lineWidth = 0.5;
+    
+    // Calculate step size for grid lines (16 divisions)
+    const stepX = canvas.width / 16;
+    const stepY = canvas.height / 16;
+    
+    // Draw horizontal grid lines
+    for (let i = 0; i <= 16; i++) {
+      const y = i * stepY;
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(canvas.width, y);
+      ctx.stroke();
+    }
+    
+    // Draw vertical grid lines
+    for (let i = 0; i <= 16; i++) {
+      const x = i * stepX;
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, canvas.height);
+      ctx.stroke();
+    }
   }, []);
+
+  // Helper function to draw axes
+  const drawAxes = useCallback((ctx, canvas) => {
+    // Calculate step size for grid lines (needed for labels)
+    const stepX = canvas.width / 16;
+    const stepY = canvas.height / 16;
+    
+    // X and Y axes with dotted lines
+    ctx.strokeStyle = '#9ca3af'; // Medium gray color
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]); // Dotted line pattern
+    
+    // X-axis (horizontal line at y=0)
+    const yAxisPos = canvas.height / 2; // y=0 position
+    ctx.beginPath();
+    ctx.moveTo(0, yAxisPos);
+    ctx.lineTo(canvas.width, yAxisPos);
+    ctx.stroke();
+    
+    // Y-axis (vertical line at x=0)
+    const xAxisPos = canvas.width / 2; // x=0 position
+    ctx.beginPath();
+    ctx.moveTo(xAxisPos, 0);
+    ctx.lineTo(xAxisPos, canvas.height);
+    ctx.stroke();
+    
+    // Reset line dash
+    ctx.setLineDash([]);
+    
+    // Draw axes labels
+    ctx.fillStyle = '#4b5563';
+    ctx.font = '12px Inter, sans-serif';
+    
+    // X-axis labels
+    for (let i = 0; i <= 16; i += 2) {
+      const x = i * stepX;
+      const value = canvasBounds.xMin + (i / 16) * (canvasBounds.xMax - canvasBounds.xMin);
+      ctx.fillText(value.toFixed(0), x - 8, canvas.height - 5);
+    }
+    
+    // Y-axis labels
+    for (let i = 0; i <= 16; i += 2) {
+      const y = i * stepY;
+      const value = canvasBounds.yMax - (i / 16) * (canvasBounds.yMax - canvasBounds.yMin);
+      ctx.fillText(value.toFixed(0), 5, y + 4);
+    }
+  }, [canvasBounds]);
+
+  // Helper to draw points and centroids
+  const drawPoints = useCallback((ctx, canvas, points, labels, centroidsToDraw) => {
+    const { width, height } = canvas;
+    const { xMin, xMax, yMin, yMax } = canvasBounds;
+    
+    // Draw points
+    points.forEach((point, index) => {
+      // Convert data coordinates to screen coordinates
+      const x = ((point[0] - xMin) / (xMax - xMin)) * width;
+      const y = height - ((point[1] - yMin) / (yMax - yMin)) * height;
+      
+      // Determine point color based on cluster label (if available)
+      let fillColor;
+      if (labels && labels.length > index) {
+        const clusterIndex = labels[index];
+        fillColor = clusterColors[clusterIndex % clusterColors.length];
+      } else {
+        fillColor = 'rgba(107, 114, 128, 0.7)'; // Default gray if no cluster assigned
+      }
+      
+      ctx.beginPath();
+      ctx.arc(x, y, 6, 0, Math.PI * 2);
+      ctx.fillStyle = fillColor;
+      ctx.fill();
+      ctx.strokeStyle = '#333';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    });
+    
+    // Draw centroids if available
+    if (centroidsToDraw && centroidsToDraw.length > 0) {
+      centroidsToDraw.forEach((centroid, index) => {
+        // Convert data coordinates to screen coordinates
+        const x = ((centroid[0] - xMin) / (xMax - xMin)) * width;
+        const y = height - ((centroid[1] - yMin) / (yMax - yMin)) * height;
+        
+        const clusterColor = clusterColors[index % clusterColors.length];
+        
+        // Draw centroid as a star
+        const radius = 8;
+        const spikes = 5;
+        const outerRadius = radius;
+        const innerRadius = radius / 2;
+        
+        ctx.beginPath();
+        let rot = Math.PI / 2 * 3;
+        let x2 = x;
+        let y2 = y;
+        const step = Math.PI / spikes;
+        
+        ctx.moveTo(x2, y2 - outerRadius);
+        
+        for (let i = 0; i < spikes; i++) {
+          x2 = x + Math.cos(rot) * outerRadius;
+          y2 = y + Math.sin(rot) * outerRadius;
+          ctx.lineTo(x2, y2);
+          rot += step;
+          
+          x2 = x + Math.cos(rot) * innerRadius;
+          y2 = y + Math.sin(rot) * innerRadius;
+          ctx.lineTo(x2, y2);
+          rot += step;
+        }
+        
+        ctx.lineTo(x, y - outerRadius);
+        ctx.closePath();
+        
+        // Fill with cluster color
+        ctx.fillStyle = clusterColor;
+        ctx.fill();
+        
+        // Add darker border
+        ctx.strokeStyle = '#000'; // Black border
+        ctx.lineWidth = 2; // Thicker border line
+        ctx.stroke();
+      });
+      
+      // Draw current iteration info
+      if (currentIteration > 0) {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        ctx.font = 'bold 14px Arial';
+        ctx.textAlign = 'left';
+        ctx.fillText(`Iteration: ${currentIteration}`, 10, 20);
+      }
+    }
+  }, [canvasBounds, clusterColors, currentIteration]);
   
   // Display notification as an error message
   const showNotification = (message, type = 'success') => {
@@ -255,172 +417,7 @@ function KMeans() {
       ctx.fillText('Click to add data points', width / 2, height / 2);
     }
     
-  }, [data, canvasDimensions, canvasBounds, clusterLabels, centroids, currentIteration]);
-  
-  // Helper function to draw grid
-  const drawGrid = (ctx, canvas) => {
-    ctx.strokeStyle = '#e5e7eb';
-    ctx.lineWidth = 0.5;
-    
-    // Calculate step size for grid lines (16 divisions)
-    const stepX = canvas.width / 16;
-    const stepY = canvas.height / 16;
-    
-    // Draw horizontal grid lines
-    for (let i = 0; i <= 16; i++) {
-      const y = i * stepY;
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(canvas.width, y);
-      ctx.stroke();
-    }
-    
-    // Draw vertical grid lines
-    for (let i = 0; i <= 16; i++) {
-      const x = i * stepX;
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, canvas.height);
-      ctx.stroke();
-    }
-  };
-  
-  // Helper function to draw axes
-  const drawAxes = (ctx, canvas) => {
-    // Calculate step size for grid lines (needed for labels)
-    const stepX = canvas.width / 16;
-    const stepY = canvas.height / 16;
-    
-    // X and Y axes with dotted lines
-    ctx.strokeStyle = '#9ca3af'; // Medium gray color
-    ctx.lineWidth = 1;
-    ctx.setLineDash([4, 4]); // Dotted line pattern
-    
-    // X-axis (horizontal line at y=0)
-    const yAxisPos = canvas.height / 2; // y=0 position
-    ctx.beginPath();
-    ctx.moveTo(0, yAxisPos);
-    ctx.lineTo(canvas.width, yAxisPos);
-    ctx.stroke();
-    
-    // Y-axis (vertical line at x=0)
-    const xAxisPos = canvas.width / 2; // x=0 position
-    ctx.beginPath();
-    ctx.moveTo(xAxisPos, 0);
-    ctx.lineTo(xAxisPos, canvas.height);
-    ctx.stroke();
-    
-    // Reset line dash
-    ctx.setLineDash([]);
-    
-    // Draw axes labels
-    ctx.fillStyle = '#4b5563';
-    ctx.font = '12px Inter, sans-serif';
-    
-    // X-axis labels
-    for (let i = 0; i <= 16; i += 2) {
-      const x = i * stepX;
-      const value = canvasBounds.xMin + (i / 16) * (canvasBounds.xMax - canvasBounds.xMin);
-      ctx.fillText(value.toFixed(0), x - 8, canvas.height - 5);
-    }
-    
-    // Y-axis labels
-    for (let i = 0; i <= 16; i += 2) {
-      const y = i * stepY;
-      const value = canvasBounds.yMax - (i / 16) * (canvasBounds.yMax - canvasBounds.yMin);
-      ctx.fillText(value.toFixed(0), 5, y + 4);
-    }
-  };
-  
-  // Inside the runKMeans function, update the animation logic:
-
-
-// Inside the drawPoints function, update the centroid drawing:
-const drawPoints = (ctx, canvas, points, labels, centroids) => {
-  const { width, height } = canvas;
-  const { xMin, xMax, yMin, yMax } = canvasBounds;
-  
-  // Draw points
-  points.forEach((point, index) => {
-    // Convert data coordinates to screen coordinates
-    const x = ((point[0] - xMin) / (xMax - xMin)) * width;
-    const y = height - ((point[1] - yMin) / (yMax - yMin)) * height;
-    
-    // Determine point color based on cluster label (if available)
-    let fillColor;
-    if (labels && labels.length > index) {
-      const clusterIndex = labels[index];
-      fillColor = clusterColors[clusterIndex % clusterColors.length];
-    } else {
-      fillColor = 'rgba(107, 114, 128, 0.7)'; // Default gray if no cluster assigned
-    }
-    
-    ctx.beginPath();
-    ctx.arc(x, y, 6, 0, Math.PI * 2);
-    ctx.fillStyle = fillColor;
-    ctx.fill();
-    ctx.strokeStyle = '#333';
-    ctx.lineWidth = 1;
-    ctx.stroke();
-  });
-  
-  // Draw centroids if available
-  if (centroids && centroids.length > 0) {
-    centroids.forEach((centroid, index) => {
-      // Convert data coordinates to screen coordinates
-      const x = ((centroid[0] - xMin) / (xMax - xMin)) * width;
-      const y = height - ((centroid[1] - yMin) / (yMax - yMin)) * height;
-      
-      const clusterColor = clusterColors[index % clusterColors.length];
-      
-      // Draw centroid as a star
-      const radius = 8;
-      const spikes = 5;
-      const outerRadius = radius;
-      const innerRadius = radius / 2;
-      
-      ctx.beginPath();
-      let rot = Math.PI / 2 * 3;
-      let x2 = x;
-      let y2 = y;
-      const step = Math.PI / spikes;
-      
-      ctx.moveTo(x2, y2 - outerRadius);
-      
-      for (let i = 0; i < spikes; i++) {
-        x2 = x + Math.cos(rot) * outerRadius;
-        y2 = y + Math.sin(rot) * outerRadius;
-        ctx.lineTo(x2, y2);
-        rot += step;
-        
-        x2 = x + Math.cos(rot) * innerRadius;
-        y2 = y + Math.sin(rot) * innerRadius;
-        ctx.lineTo(x2, y2);
-        rot += step;
-      }
-      
-      ctx.lineTo(x, y - outerRadius);
-      ctx.closePath();
-      
-      // Fill with cluster color
-      ctx.fillStyle = clusterColor;
-      ctx.fill();
-      
-      // Add darker border
-      ctx.strokeStyle = '#000'; // Black border
-      ctx.lineWidth = 2; // Thicker border line
-      ctx.stroke();
-    });
-    
-    // Draw current iteration info
-    if (currentIteration > 0) {
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-      ctx.font = 'bold 14px Arial';
-      ctx.textAlign = 'left';
-      ctx.fillText(`Iteration: ${currentIteration}`, 10, 20);
-    }
-  }
-};
+  }, [data, canvasDimensions, canvasBounds, clusterLabels, centroids, currentIteration, drawGrid, drawAxes, drawPoints]);
 
   return (
     <motion.div 
